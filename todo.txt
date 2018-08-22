@@ -8,7 +8,7 @@
 3. Flags: 
    * green (novel lead: smallest p-value in a block, not in 500kb region of established variant, not in LD with established variant)
    * yellow (novel secondary: physically close to novel variant, not in LD)   
-   * orange (tertiary signal: in LD or physically close to established variant, but might be independent)
+   * orange (tertiary signal: physically close to established variant, not in LD, might be independent)
    * red (known variant: in LD with established SNP and/or 500kb region)
    
 4. Extra:
