@@ -12,7 +12,7 @@
 #            Version :  1.0
 #            Created :  21-Aug-2018
 #           Revision :  none
-#  last modification :  21-Aug-2018
+#  Last modification :  21-Aug-2018
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
