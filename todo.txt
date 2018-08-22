@@ -1,0 +1,20 @@
+1. Take clumped SNPs, plus those that get thrown away in log file because not in 1000 genomes, plus established SNP
+   * Then generate a plink subset in MVP, that will include all LD stats for all SNPs (and we don't miss anything)
+   * Because now is only G1K
+
+2. Combined set: When multiple identical entries from different ethnicities (then collapse into 1, take smallest p-value) 
+   * add columns for each (TRANS-P, EUR-P, AFR-P, SAS-P, AMR-P)
+
+3. Flags: 
+   * green (novel lead: smallest p-value in a block, not in 500kb region of established variant, not in LD with established variant)
+   * yellow (novel secondary: physically close to novel variant, not in LD)   
+   * orange (tertiary signal: in LD or physically close to established variant, but might be independent)
+   * red (known variant: in LD with established SNP and/or 500kb region)
+   
+4. Extra:
+   * locuszoom plot
+   * R-coloc analysis with eQTL data (Casey Brown)
+   * GCTA-COJO analysis (conditional & joint analysis of GWAS summary statistics without individual-level genotype data)
+   * coding variants (MAC > 30 : MAF < 0.025)
+   * X chromosome
+
