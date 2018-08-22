@@ -16,9 +16,9 @@
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
-#            Company :  University of Pennsylvania, Perelman School of Medicine
+#        Institution :  University of Pennsylvania, Perelman School of Medicine
 #              Email :  vujkovic@pennmedicine.upenn.edu
-#            license :  GPL (>=3)
+#            License :  GPL (>=3)
 #
 #=====================================================================================
 
