@@ -3,9 +3,9 @@
 #           Filename :  leadFunctions.R
 #
 #       Description  :  identify list of potential novel SNPs associated with disease
-#                       requires * GWAS output (from meta-analysis)
+#                       requires * clumped GWAS output (from meta-analysis)
 #                                * list of established loci (from literature)
-#                                * LD statistics for clumped SNPs (plink output)
+#                                * plink LD output for all clumped SNPs (from analysis + established)
 #
 #        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates
 #
