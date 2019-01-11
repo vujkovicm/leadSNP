@@ -9,10 +9,10 @@
 #
 #        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates
 #
-#            Version :  1.0
+#            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  none
-#  Last modification :  21-Aug-2018
+#           Revision :  fixed errors
+#  Last modification :  11-Jan-2019
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
@@ -21,6 +21,10 @@
 #            License :  GPL (>=3)
 #
 #=====================================================================================
+
+
+# HLA region hg19
+# chr6:28,477,797-33,448,354
 
 # import clumped file
 clump.import = function(filename = "", pop) {
@@ -33,7 +37,6 @@ clump.import = function(filename = "", pop) {
    }
 }
 
-
 # get coordinates based on format chr1:58984
 snp.coordinates = function(df){
         names(df) = "CHRCBP"
@@ -45,6 +48,7 @@ snp.coordinates = function(df){
         return(df)
 }
 
+# define the region
 snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
   df = df[order(df$CHR, df$BP), ]
   out = NULL
@@ -73,9 +77,8 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
    return(out)
 }
 
-
-# is a SNP novel as compared to a list of established SNPs?
-snp.novel = function(df, chr = "CHR", bp = "BP", snp = "SNP", df.ref, df.ld, half.window = 500000) {
+# is the SNP novel?
+novel = function(df, chr = "CHR", bp = "BP", snp = "SNP", df.ref, df.ld, half.window = 500000) {
    out = NULL
    for (iCHR in 1:22) {
       df.chr   = df[df[, chr] == iCHR, ]
@@ -120,11 +123,10 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "SNP", df.ref, df.ld, hal
    return(out)
 }
 
-
-## LD: which SNPs are stored where
+# LD: which SNPs are stored where
 ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.afr = F, df.amr = F, df.asn = F){
    df.ld[, "REF_A"] = ifelse(df.ld$SNP_A %in% df.ref[, "CHRCBP"], 1, 0)
-   df.ld[, "REF_A"] = ifelse(df.ld$SNP_A %in% df.ref[, "CHRCBP"], 1, 0)
+   df.ld[, "REF_B"] = ifelse(df.ld$SNP_B %in% df.ref[, "CHRCBP"], 1, 0)
    if(is.data.frame(df.trans)){
       df.ld[, "TRANS_A"] = ifelse(df.ld$SNP_A %in% df.trans[, "SNP"], 1, 0)
       df.ld[, "TRANS_B"] = ifelse(df.ld$SNP_B %in% df.trans[, "SNP"], 1, 0)
@@ -200,8 +202,9 @@ snp.annotate = function(df, chr = "CHR", bp = "BP", range.1 = 100000, range.2 = 
    for(i in 1:nrow(df)) {
       out = getBM(
       attributes = c('ensembl_gene_id', 'external_gene_name'), filters = 'chromosomal_region', values = df$query[i], mart = mart.hs)
-      out = subset(out, !grepl("\\.", out$external_gene_name))
+      out = subset(out, !grepl("\\.",  out$external_gene_name))
       out = subset(out, !grepl("LINC", out$external_gene_name))
+      out = subset(out, !grepl("_",    out$external_gene_name))
       if(nrow(out) > 0) {
          df$ENSID[i] = out$ensembl_gene_id
          df$GENE[i] = out$external_gene_name
@@ -209,17 +212,20 @@ snp.annotate = function(df, chr = "CHR", bp = "BP", range.1 = 100000, range.2 = 
       else { # if SNP not in gene, extend range
         df$query[i] = paste(gsub("chr", '', df[i, chr]), df[i, bp] - range.1, df[i, bp] + range.1, sep = ":")
         out = getBM(attributes = c('ensembl_gene_id', 'external_gene_name'), filters = 'chromosomal_region', values = df$query[i], mart = mart.hs )
-        out = subset(out, !grepl("\\.", out$external_gene_name))
+        out = subset(out, !grepl("\\.",  out$external_gene_name))
         out = subset(out, !grepl("LINC", out$external_gene_name))
+        out = subset(out, !grepl("_",    out$external_gene_name))
         if(nrow(out) > 0) {
            df$ENSID[i] = NA
            df$GENE[i]  =  paste(unique(unlist(out$external_gene_name)), collapse = ';')
         }
+  }
         else { # if not in first range, then try second range
            df$query[i] = paste(gsub("chr", '', df[i, chr]), df[i, bp] - range.2, df[i, bp] + range.2, sep = ":")
            out = getBM(attributes = c('ensembl_gene_id', 'external_gene_name'), filters = 'chromosomal_region', values = df$query[i], mart = mart.hs)
-           out = subset(out, !grepl("\\.", out$external_gene_name))
+           out = subset(out, !grepl("\\.",  out$external_gene_name))
            out = subset(out, !grepl("LINC", out$external_gene_name))
+           out = subset(out, !grepl("_",    out$external_gene_name))
            df$ENSID[i] = NA
            df$GENE[i]  =  paste(unique(unlist(out$external_gene_name)), collapse = ';')
         }
