@@ -6,7 +6,7 @@ awk '{if(NR>1) print $1" "$6}' mydata.1.TBL >> example.toClump
 
 # clump SNPs from experimental GWAS output
 /project/saleheenlab/software/PLINK/PLINK_1.9/plink \
-        --bfile ../../ldref/EUR.ref \
+        --bfile ../ldref/EUR.ref \
         --clump example.toClump \
         --clump-kb 500 \
         --clump-p1 0.00000005 \
@@ -24,9 +24,9 @@ awk 'FNR>1 {print $3}' example.distinct.locus.txt >> example.establishedSNPs.and
 
 # get LD of all established and potentially novel SNPs
 /project/saleheenlab/software/PLINK/PLINK_1.9/plink \
-       --bfile ../../ldref/EUR.ref \
+       --bfile ../ldref/EUR.ref \
        --r2 dprime \
        --ld-window-r2 0.05 \
-       --extract ../../out/TRANS/T2D.TRANS.loci.combined.diamante.txt \
+       --extract example.establishedSNPs.and.experimentalSNPs.txt \
        --out example.established.and.experimental
 
