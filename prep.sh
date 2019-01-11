@@ -5,7 +5,7 @@ echo "SNP P" > example.toClump
 awk '{if(NR>1) print $1" "$6}' mydata.1.TBL >> example.toClump
 
 # clump SNPs from experimental GWAS output
-/project/saleheenlab/software/PLINK/PLINK_1.9/plink \
+/software/PLINK/PLINK_1.9/plink \
         --bfile ../ldref/EUR.ref \
         --clump example.toClump \
         --clump-kb 500 \
@@ -23,7 +23,7 @@ awk 'FNR>1 {print $1}' example.establishedSNPs.txt > example.establishedSNPs.and
 awk 'FNR>1 {print $3}' example.distinct.locus.txt >> example.establishedSNPs.and.experimentalSNPs.txt
 
 # get LD of all established and potentially novel SNPs
-/project/saleheenlab/software/PLINK/PLINK_1.9/plink \
+/software/PLINK/PLINK_1.9/plink \
        --bfile ../ldref/EUR.ref \
        --r2 dprime \
        --ld-window-r2 0.05 \
