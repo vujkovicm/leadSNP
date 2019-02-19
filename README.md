@@ -6,3 +6,5 @@ Identify list of potential novel SNPs associated with disease. Requires 1) clump
 clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates
 
 ### Example on how to preformat the input files from using prep.sh
+
+### Nice to add: summary stats on how many regions, novel, established, etc..
