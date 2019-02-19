@@ -11,8 +11,8 @@
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  fixed errors
-#  Last modification :  11-Jan-2019
+#           Revision :  fixed bug in block.snp
+#  Last modification :  19-Feb-2019
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
@@ -56,6 +56,8 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
      df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "S001", "S0001", "POP")]
      if (nrow(df.chr) > 0) {
         for (i in 1:nrow(df.chr)) {
+           # take first
+           # i = 1
            current.bp  = df.chr[i, "BP"]
            current.df  = df.chr[df.chr[, "BP"] >= current.bp - half.window & df.chr[, "BP"] <= current.bp + half.window, ]
            block.start = min(current.df[, "BP"])
@@ -66,7 +68,7 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
            block.S0001 = sum(current.df[, "S0001"])
            block.snp   = paste0("chr", iCHR, ":", block.bp)
            tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], S001 = df.chr[i, "S001"], S0001 = df.chr[i, "S0001"],
-                POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.P = block.p, BLOCK.S001 = block.S001, BLOCK.S0001 = block.S0001,
+                POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.S001 = block.S001, BLOCK.S0001 = block.S0001,
                 BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
            out = rbind(out, tmp)
          }
@@ -74,26 +76,83 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
    }
    out$BLOCK.PRIMARY   = ifelse(out$SNP == out$BLOCK.SNP, 1, 0)
    out$BLOCK.SECONDARY = ifelse(out$SNP != out$BLOCK.SNP, 1, 0)
-   return(out)
+   # CLEAN UP THE BLOCKS
+   count = 0
+   for (i in 1:nrow(out)) {
+        if (out$BLOCK.PRIMARY[i] == 1) {
+                count = count + 1
+                out$BLOCK.N[i] = count
+        } else {
+                out$BLOCK.N[i] = NA
+        }
+   }
+   for (i in 2:nrow(out)) {
+        if (is.na(out$BLOCK.N[i]) == T) {
+                prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
+                if(i < nrow(out)) {
+                        nxt = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == min(out$BLOCK.N[i:nrow(out)], na.rm = T))), "SNP"]
+                }
+                if((nxt == prv) & (i < nrow(out))) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                }
+                else {
+                if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                } else if (i < nrow(out)) {
+                        if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
+                                out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                        } else {
+                                prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
+                                next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
+                                if(prev.diff < next.diff) {
+                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                                } else {
+                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                                }
+                                }
+                        }
+                }
+        }
+   }
+   # now update according to the new block information the positions
+   out.final = NULL
+   for(i in 1:max(out$BLOCK.N)) {
+        block             = out[which(out$BLOCK.N == i), ]
+        block$BLOCK.SNP   = tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]] # most frequent SNP
+        block$BLOCK.BP    = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]
+        block$P           = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "P"]
+        block$BLOCK.START = min(block$BLOCK.START)
+        block$BLOCK.END   = max(block$BLOCK.END)
+        out.final         = rbind(out.final, block)
+    }
+    return(out.final)
 }
 
 # is the SNP novel?
-novel = function(df, chr = "CHR", bp = "BP", snp = "SNP", df.ref, df.ld, half.window = 500000) {
+snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.ld, half.window = 500000) {
    out = NULL
    for (iCHR in 1:22) {
+   #print(iCHR)
+   #for(iCHR in 10) {
       df.chr   = df[df[, chr] == iCHR, ]
       ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ]
       if (nrow(df.chr) > 0) {
         df.chr$SENTINEL = NA
         df.chr$ISOLATED = 0
         for (i in 1:nrow(df.chr)) {
+           #print(i)
            if(nrow(ref.chr) == 0) {
               df.chr$SENTINEL[i] = NA
               df.chr$ISOLATED[i] = 0
            }
            else {
               for(j in 1:nrow(ref.chr)) {
-                 if((df.chr[i, bp] >= ref.chr[j, bp] - half.window) & (df.chr[i, bp] <= ref.chr[j, bp] + half.window)) {
+                 #print(j)
+                 if((df.chr[i, "BLOCK.BP"] >= ref.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= ref.chr[j, bp] + half.window)) {
                     df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
                  }
                  else if (df.chr[i, snp] %in% df.ld$SNP_A) {
@@ -122,6 +181,7 @@ novel = function(df, chr = "CHR", bp = "BP", snp = "SNP", df.ref, df.ld, half.wi
    out$NOVEL    = ifelse(out$SENTINEL == "-", 1, 0)
    return(out)
 }
+
 
 # LD: which SNPs are stored where
 ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.afr = F, df.amr = F, df.asn = F){
