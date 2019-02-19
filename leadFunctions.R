@@ -38,7 +38,7 @@ clump.import = function(filename = "", pop) {
 }
 
 # get coordinates based on format chr1:58984
-snp.coordinates = function(df){
+snp.coordinates = function(df) {
         names(df) = "CHRCBP"
         tmp = as.data.frame(do.call(rbind, strsplit(df$CHRCBP, '\\:')), stringsAsFactors = F)
         colnames(tmp) = c("CHR", "BP")
@@ -89,34 +89,34 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
    for (i in 2:nrow(out)) {
         if (is.na(out$BLOCK.N[i]) == T) {
                 prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
-                if(i < nrow(out)) {
+                if (i < nrow(out)) {
                         nxt = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == min(out$BLOCK.N[i:nrow(out)], na.rm = T))), "SNP"]
                 }
                 if((nxt == prv) & (i < nrow(out))) {
                         out$BLOCK.N[i] = out$BLOCK.N[i - 1]
                 }
                 else {
-                if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                } else if (i < nrow(out)) {
-                        if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
-                                out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                        } else {
-                                prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
-                                next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
-                                if(prev.diff < next.diff) {
-                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                                } else {
-                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                                }
-                                }
+                        if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
+                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                        } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
+                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                        } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
+                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                        } else if (i < nrow(out)) {
+                                 if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
+                                       out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                                 } else {
+                                       prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
+                                       next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
+                                       if(prev.diff < next.diff) {
+                                             out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                                       } else {
+                                             out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                                       }
+                                 }
                         }
-                }
-        }
+                  }
+         }
    }
    # now update according to the new block information the positions
    out.final = NULL
@@ -125,8 +125,8 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
         block$BLOCK.SNP   = tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]] # most frequent SNP
         block$BLOCK.BP    = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]
         block$P           = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "P"]
-        block$BLOCK.START = min(block$BLOCK.START)
-        block$BLOCK.END   = max(block$BLOCK.END)
+        block$BLOCK.START = min(block$BP)
+        block$BLOCK.END   = max(block$BP)
         out.final         = rbind(out.final, block)
     }
     return(out.final)
