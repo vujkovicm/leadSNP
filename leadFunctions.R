@@ -7,12 +7,12 @@
 #                                * list of established loci (from literature)
 #                                * plink LD output for all clumped SNPs (from analysis + established)
 #
-#        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates
+#        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates, overlapping.cojo.snps, blocks.revisited  
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  fixed bug in block.snp
-#  Last modification :  19-Feb-2019
+#           Revision :  fixed bug in coordinates, and added two new functions: overlapping.cojo.snps 
+#  Last modification :  20-Feb-2019
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
@@ -38,10 +38,11 @@ clump.import = function(filename = "", pop) {
 }
 
 # get coordinates based on format chr1:58984
-snp.coordinates = function(df) {
+snp.coordinates = function(df){
         names(df) = "CHRCBP"
         tmp = as.data.frame(do.call(rbind, strsplit(df$CHRCBP, '\\:')), stringsAsFactors = F)
         colnames(tmp) = c("CHR", "BP")
+        tmp$CHR = ifelse(tmp$CHR == "chrX", "chr24", tmp$CHR)
         df = cbind(df, tmp)
         df$CHR = as.numeric(substring(df$CHR, 4))
         df$BP  = as.numeric(df$BP)
@@ -142,12 +143,12 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
       ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ]
       if (nrow(df.chr) > 0) {
         df.chr$SENTINEL = NA
-        df.chr$ISOLATED = 0
+        df.chr$WEIRDO = 0
         for (i in 1:nrow(df.chr)) {
            #print(i)
            if(nrow(ref.chr) == 0) {
               df.chr$SENTINEL[i] = NA
-              df.chr$ISOLATED[i] = 0
+              df.chr$WEIRDO[i] = 0
            }
            else {
               for(j in 1:nrow(ref.chr)) {
@@ -169,8 +170,7 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
            }
            if (is.na(df.chr$SENTINEL[i]) == T) {
               if (df.chr$S0001[i] <= df.chr$S001[i]) {
-                 df.chr$ISOLATED[i] = 1
-                 df.chr$SENTINEL[i] = "."
+                 df.chr$WEIRDO[i] = 1
               }
            }
         }
@@ -182,6 +182,69 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
    return(out)
 }
 
+# return list of shared conditionally independent SNPs across blocks (regions) 
+overlapping.cojo.snps = function(df) {
+        tmp = unique(df[which(df$SecondarySNP %in% df[duplicated(df$SecondarySNP), "SecondarySNP"] & is.na(df$SecondarySNP) == F), "SecondarySNP"])
+        if(length(tmp) == 0) {
+                return(0)
+        } else {
+                return(tmp)
+        }
+}
+
+# merge regions which share conditionally independent SNPs
+blocks.revisited = function(df) {
+        tmp = overlapping.cojo.snps(df)
+        if(tmp == 0) {
+                return(df)
+        } else {
+                df.merged  = NULL
+                block.list = NULL
+                for (i in 1:length(tmp)) {
+                        if(!(df[which(df$SecondarySNP == tmp[i]), "BLOCK.SNP"][1] %in% block.list)) {
+                                old.blocks = df[which(df$SecondarySNP == tmp[i]), "BLOCK.SNP"]
+                                df.tmp = df[which(df$BLOCK.SNP %in% old.blocks), ]
+                                df.tmp$COJO.SNP       = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "BLOCK.SNP"][1]
+                                df.tmp$COJO.BP        = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "BP"][1]
+                                df.tmp$COJO.P         = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "P"][1]
+                                df.tmp$COJO.SECONDARY = ifelse(df.tmp$SNP == df.tmp$BLOCK.SNP[1], 0, 1)
+                                df.tmp$COJO.PRIMARY   = ifelse(df.tmp$SNP == df.tmp$BLOCK.SNP[1], 1, 0)
+                                df.tmp$COJO.START     = df.tmp[which(df.tmp[, "BLOCK.START"] == min(df.tmp[, "BLOCK.START"])), "BLOCK.START"][1]
+                                df.tmp$COJO.END       = df.tmp[which(df.tmp[, "BLOCK.END"] == max(df.tmp[, "BLOCK.END"])), "BLOCK.END"][1]
+                                df.tmp$COJO.N         = min(df.tmp[, "BLOCK.N"])
+                                # remove one of the entries
+                                dup.snp = row.names(df.tmp[which((df.tmp$SNP != df.tmp$COJO.SNP) & (df.tmp$SecondarySNP == tmp[i])), ])
+                                df.tmp = df.tmp[which(row.names(df.tmp) != dup.snp), ]
+                                df.merged = rbind(df.merged, df.tmp)
+                                block.list = c(block.list,  old.blocks)
+                        }
+                        else {
+                                # remove another duplicate entry from df.merged
+                                dup.snp = row.names(df.merged[which((df.merged$SNP != df.merged$COJO.SNP) & (df.merged$SecondarySNP == tmp[i])), ])
+                                df.merged = df.merged[which(row.names(df.merged) != dup.snp), ]
+                        }
+                }
+                # keep the regions that were correct as is
+                df.resto = df[which(!(df$BLOCK.SNP %in% block.list)), ]
+                df.resto$COJO.SNP       = df.resto$BLOCK.SNP
+                df.resto$COJO.BP        = df.resto$BLOCK.BP
+                df.resto$COJO.P         = df.resto$BLOCK.P
+                df.resto$COJO.SECONDARY = df.resto$BLOCK.SECONDARY
+                df.resto$COJO.PRIMARY   = df.resto$BLOCK.PRIMARY
+                df.resto$COJO.START     = df.resto$BLOCK.START
+                df.resto$COJO.END       = df.resto$BLOCK.END
+                df.resto$COJO.N         = df.resto$BLOCK.N
+                # merge and correct the block id's
+                out = rbind(df.resto, df.merged)
+                out = out[order(out$CHR, out$BP), ]
+                for(i in 2:nrow(out)) {
+                        if(out$COJO.N[i] != out$COJO.N[i-1]) {
+                                out[which(out$COJO.N == out$COJO.N[i]), "COJO.N"] =  out$COJO.N[i - 1] + 1
+                        }
+                }
+                return(out)
+        }
+}
 
 # LD: which SNPs are stored where
 ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.afr = F, df.amr = F, df.asn = F){
