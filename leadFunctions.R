@@ -263,7 +263,7 @@ blocks.revisited = function(df) {
 }
 
 # LD: which SNPs are stored where
-ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.afr = F, df.amr = F, df.asn = F){
+ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.afr = F, df.amr = F, df.eas = F){
    df.ld[, "REF_A"] = ifelse(df.ld$SNP_A %in% df.ref[, "CHRCBP"], 1, 0)
    df.ld[, "REF_B"] = ifelse(df.ld$SNP_B %in% df.ref[, "CHRCBP"], 1, 0)
    if(is.data.frame(df.trans)){
@@ -286,9 +286,9 @@ ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.a
       df.ld[, "AMR_A"] = ifelse(df.ld$SNP_A %in% df.amr[, "SNP"], 1, 0)
       df.ld[, "AMR_B"] = ifelse(df.ld$SNP_B %in% df.amr[, "SNP"], 1, 0)
    }
-   if(is.data.frame(df.asn)){
-      df.ld[, "ASN_A"] = ifelse(df.ld$SNP_A %in% df.asn[, "SNP"], 1, 0)
-      df.ld[, "ASN_B"] = ifelse(df.ld$SNP_B %in% df.asn[, "SNP"], 1, 0)
+   if(is.data.frame(df.eas)){
+      df.ld[, "EAS_A"] = ifelse(df.ld$SNP_A %in% df.eas[, "SNP"], 1, 0)
+      df.ld[, "EAS_B"] = ifelse(df.ld$SNP_B %in% df.eas[, "SNP"], 1, 0)
    }
    return(df.ld)
 }
