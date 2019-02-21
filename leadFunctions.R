@@ -11,7 +11,7 @@
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  fixed bug in coordinates, and added two new functions: overlapping.cojo.snps 
+#           Revision :  fixed bug in coordinates, and added two new functions: overlapping.cojo.snps, blocks.revisited
 #  Last modification :  20-Feb-2019
 #
 #             Author :  Marijana Vujkovic
