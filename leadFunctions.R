@@ -7,11 +7,11 @@
 #                                * list of established loci (from literature)
 #                                * plink LD output for all clumped SNPs (from analysis + established)
 #
-#        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates, overlapping.cojo.snps, blocks.revisited  
+#        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates, overlapping.cojo.snps, updated.primary.lead, blocks.revisited  
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  fixed bug in coordinates, and added two new functions: overlapping.cojo.snps, blocks.revisited
+#           Revision :  fixed bug in coordinates, and added two new functions: overlapping.cojo.snps, blocks.revisited, updated.primary.lead 
 #  Last modification :  20-Feb-2019
 #
 #             Author :  Marijana Vujkovic
@@ -189,6 +189,22 @@ overlapping.cojo.snps = function(df) {
                 return(0)
         } else {
                 return(tmp)
+        }
+}
+
+# return the loci that COJO should be rerun on
+updated.primary.lead = function(df) {
+        tmp = unique(df[which(df$SecondarySNP %in% df[duplicated(df$SecondarySNP), "SecondarySNP"] & is.na(df$SecondarySNP) == F), "SecondarySNP"])
+        if(length(tmp) == 0) {
+                return(0)
+        } else {
+                out = NULL
+                for (i in 1:length(tmp)) {
+                        df.tmp    = df[which(df$SecondarySNP == tmp[i]), c("BLOCK.SNP", "BLOCK.P")]
+                        new.lead  = df.tmp[which(df.tmp$BLOCK.P == min(df.tmp$BLOCK.P)), "BLOCK.SNP"]
+                        out       = c(out, new.lead)
+                }
+                return(unique(out))
         }
 }
 
