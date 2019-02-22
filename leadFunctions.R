@@ -66,8 +66,8 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
            block.p     = min(current.df[, "P"])
            block.bp    = current.df[current.df[, "P"] == block.p, "BP"]
            block.snp   = paste0("chr", iCHR, ":", block.bp)
-           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.S001 = block.S001, BLOCK.S0001 = block.S0001,
-                BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
+           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, 
+                            BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
            out = rbind(out, tmp)
          }
       }
