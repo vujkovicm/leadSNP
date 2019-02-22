@@ -218,14 +218,14 @@ blocks.revisited = function(df) {
                                 df.tmp$COJO.START     = df.tmp[which(df.tmp[, "BLOCK.START"] == min(df.tmp[, "BLOCK.START"])), "BLOCK.START"][1]
                                 df.tmp$COJO.END       = df.tmp[which(df.tmp[, "BLOCK.END"] == max(df.tmp[, "BLOCK.END"])), "BLOCK.END"][1]
                                 df.tmp$COJO.N         = min(df.tmp[, "BLOCK.N"])
-                                # remove one of the entries
+                                # set one of the secondary SNPs to missing (in the lesser of the significant lead SNPs)
                                 dup.snp = row.names(df.tmp[which((df.tmp$SNP != df.tmp$COJO.SNP) & (df.tmp$SecondarySNP == tmp[i])), ])
-                                df.tmp = df.tmp[which(row.names(df.tmp) != dup.snp), ]
+                                df.tmp[which(row.names(df.tmp) == dup.snp), c("SecondarySNP", "bp", "refA", "freq", "b", "se", "p", "n", "freq_geno", "bJ", "bJ_se", "pJ", "LD_r")] = rep(NA, 13)
                                 df.merged = rbind(df.merged, df.tmp)
                                 block.list = c(block.list,  old.blocks)
                         }
                         else {
-                                # remove another duplicate entry from df.merged
+                                # remove the duplicate entry from df.merged
                                 dup.snp = row.names(df.merged[which((df.merged$SNP != df.merged$COJO.SNP) & (df.merged$SecondarySNP == tmp[i])), ])
                                 df.merged = df.merged[which(row.names(df.merged) != dup.snp), ]
                         }
