@@ -30,7 +30,7 @@
 clump.import = function(filename = "", pop) {
    if(file.exists(filename)) {
       library("data.table")
-      df <- fread(filename, select = c("CHR", "SNP", "BP", "P", "S001", "S0001"))
+      df <- fread(filename, select = c("CHR", "SNP", "BP", "P"))
       df[which(df$P == 0), "P"] = 1e-315
       df$POP = pop
       return(as.data.frame(df, stringsAsFactors = F))
@@ -54,7 +54,7 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
   df = df[order(df$CHR, df$BP), ]
   out = NULL
   for (iCHR in 1:22)  {
-     df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "S001", "S0001", "POP")]
+     df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "POP")]
      if (nrow(df.chr) > 0) {
         for (i in 1:nrow(df.chr)) {
            # take first
@@ -65,11 +65,8 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
            block.end   = max(current.df[, "BP"])
            block.p     = min(current.df[, "P"])
            block.bp    = current.df[current.df[, "P"] == block.p, "BP"]
-           block.S001  = sum(current.df[, "S001"])
-           block.S0001 = sum(current.df[, "S0001"])
            block.snp   = paste0("chr", iCHR, ":", block.bp)
-           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], S001 = df.chr[i, "S001"], S0001 = df.chr[i, "S0001"],
-                POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.S001 = block.S001, BLOCK.S0001 = block.S0001,
+           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.S001 = block.S001, BLOCK.S0001 = block.S0001,
                 BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
            out = rbind(out, tmp)
          }
@@ -143,12 +140,10 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
       ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ]
       if (nrow(df.chr) > 0) {
         df.chr$SENTINEL = NA
-        df.chr$WEIRDO = 0
         for (i in 1:nrow(df.chr)) {
            #print(i)
            if(nrow(ref.chr) == 0) {
               df.chr$SENTINEL[i] = NA
-              df.chr$WEIRDO[i] = 0
            }
            else {
               for(j in 1:nrow(ref.chr)) {
@@ -166,11 +161,6 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
                        df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
                     }
                  }
-              }
-           }
-           if (is.na(df.chr$SENTINEL[i]) == T) {
-              if (df.chr$S0001[i] <= df.chr$S001[i]) {
-                 df.chr$WEIRDO[i] = 1
               }
            }
         }
@@ -223,8 +213,8 @@ blocks.revisited = function(df) {
                                 df.tmp$COJO.SNP       = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "BLOCK.SNP"][1]
                                 df.tmp$COJO.BP        = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "BP"][1]
                                 df.tmp$COJO.P         = df.tmp[which(df.tmp[, "P"] == min(df.tmp[, "P"])), "P"][1]
-                                df.tmp$COJO.SECONDARY = ifelse(df.tmp$SNP == df.tmp$BLOCK.SNP[1], 0, 1)
-                                df.tmp$COJO.PRIMARY   = ifelse(df.tmp$SNP == df.tmp$BLOCK.SNP[1], 1, 0)
+                                df.tmp$COJO.SECONDARY = ifelse(df.tmp$SNP == df.tmp$COJO.SNP[1], 0, 1)
+                                df.tmp$COJO.PRIMARY   = ifelse(df.tmp$SNP == df.tmp$COJO.SNP[1], 1, 0)
                                 df.tmp$COJO.START     = df.tmp[which(df.tmp[, "BLOCK.START"] == min(df.tmp[, "BLOCK.START"])), "BLOCK.START"][1]
                                 df.tmp$COJO.END       = df.tmp[which(df.tmp[, "BLOCK.END"] == max(df.tmp[, "BLOCK.END"])), "BLOCK.END"][1]
                                 df.tmp$COJO.N         = min(df.tmp[, "BLOCK.N"])
