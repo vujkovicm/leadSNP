@@ -345,8 +345,8 @@ snp.annotate = function(df, chr = "CHR", bp = "BP", range.1 = 100000, range.2 = 
         out = subset(out, !grepl("LINC", out$external_gene_name))
         out = subset(out, !grepl("_",    out$external_gene_name))
         if(nrow(out) > 0) {
-           df$ENSID[i] = NA
-           df$GENE[i]  =  paste(unique(unlist(out$external_gene_name)), collapse = ';')
+           df$ENSID[i] = "-"
+           df$GENE[i]  = paste(unique(unlist(out$external_gene_name)), collapse = ';')
         }
   }
         else { # if not in first range, then try second range
@@ -355,8 +355,8 @@ snp.annotate = function(df, chr = "CHR", bp = "BP", range.1 = 100000, range.2 = 
            out = subset(out, !grepl("\\.",  out$external_gene_name))
            out = subset(out, !grepl("LINC", out$external_gene_name))
            out = subset(out, !grepl("_",    out$external_gene_name))
-           df$ENSID[i] = NA
-           df$GENE[i]  =  paste(unique(unlist(out$external_gene_name)), collapse = ';')
+           df$ENSID[i] = "-"
+           df$GENE[i]  = paste(unique(unlist(out$external_gene_name)), collapse = ';')
         }
       }
    }
