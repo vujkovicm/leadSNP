@@ -49,25 +49,37 @@ snp.coordinates = function(df){
         return(df)
 }
 
-# define the region
-snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
+# define independend regions based on LD and physical distance
+snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
   df = df[order(df$CHR, df$BP), ]
   out = NULL
   for (iCHR in 1:22)  {
+     #print(paste("chr", iCHR, sep = ":"))
      df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "POP")]
      if (nrow(df.chr) > 0) {
         for (i in 1:nrow(df.chr)) {
+           # add also R2
            # take first
-           # i = 1
+           #print(i)
            current.bp  = df.chr[i, "BP"]
+           current.snp = df.chr[i, "SNP"]
            current.df  = df.chr[df.chr[, "BP"] >= current.bp - half.window & df.chr[, "BP"] <= current.bp + half.window, ]
+           # add SNPs that are in R2 with current.bp
+           r2.A        = df.ld[which(df.ld$SNP_A == current.snp), "SNP_B"]
+           r2.B        = df.ld[which(df.ld$SNP_B == current.snp), "SNP_A"]
+           r2          = unique(c(r2.A, r2.B))
+           if(length(r2) > 0) {
+                r2.df  = df.chr[which(df.chr$SNP %in% r2),]
+                # merge region based on physical distance and r2
+                current.df  = unique(rbind(current.df, r2.df))
+           }
            block.start = min(current.df[, "BP"])
            block.end   = max(current.df[, "BP"])
            block.p     = min(current.df[, "P"])
            block.bp    = current.df[current.df[, "P"] == block.p, "BP"]
            block.snp   = paste0("chr", iCHR, ":", block.bp)
-           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"], BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, 
-                            BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
+           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"],
+                BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
            out = rbind(out, tmp)
          }
       }
@@ -84,48 +96,82 @@ snp.block = function(df, half.window = 500000, p.threshold = 5e-8) {
                 out$BLOCK.N[i] = NA
         }
    }
+   # now merge blocks that are knd of close and give them an id
    for (i in 2:nrow(out)) {
         if (is.na(out$BLOCK.N[i]) == T) {
                 prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
-                if (i < nrow(out)) {
+                if(i < nrow(out)) {
                         nxt = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == min(out$BLOCK.N[i:nrow(out)], na.rm = T))), "SNP"]
                 }
                 if((nxt == prv) & (i < nrow(out))) {
                         out$BLOCK.N[i] = out$BLOCK.N[i - 1]
                 }
                 else {
-                        if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
-                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                        } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
-                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                        } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
-                                 out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                        } else if (i < nrow(out)) {
-                                 if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
-                                       out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                                 } else {
-                                       prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
-                                       next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
-                                       if(prev.diff < next.diff) {
-                                             out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                                       } else {
-                                             out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                                       }
-                                 }
+                if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
+                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                } else if (i < nrow(out)) {
+                        if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
+                                out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                        } else {
+                                prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
+                                next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
+                                if(prev.diff < next.diff) {
+                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+                                } else {
+                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+                                }
+                                }
                         }
-                  }
-         }
+                }
+        }
    }
-   # now update according to the new block information the positions
+# now update according to the new block information the positions
    out.final = NULL
    for(i in 1:max(out$BLOCK.N)) {
         block             = out[which(out$BLOCK.N == i), ]
-        block$BLOCK.SNP   = tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]] # most frequent SNP
-        block$BLOCK.BP    = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]
-        block$P           = block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "P"]
-        block$BLOCK.START = min(block$BP)
-        block$BLOCK.END   = max(block$BP)
-        out.final         = rbind(out.final, block)
+        block$BLOCK.SNP   = block[which(block$BLOCK.P == min(block$BLOCK.P)), "BLOCK.SNP"][[1]] # SNP with minimum P-value
+        if(length(block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]) > 0) {
+                block$BLOCK.BP    = block[which(block$BLOCK.PRIMARY == 1), "BP"]
+                block$BLOCK.P     = block[which(block$BLOCK.PRIMARY == 1), "P"]
+                block$BLOCK.START = min(block$BP)
+                block$BLOCK.END   = max(block$BP)
+                out.final         = rbind(out.final, block)
+        } else if(i < out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]){ # leadSNP is in next block
+                out[which(out$BLOCK.N == i), "BLOCK.PRIMARY"]   = 0
+                out[which(out$BLOCK.N == i), "BLOCK.SECONDARY"] = 1
+                out[which(out$BLOCK.N == i), "BLOCK.P"]         = out[which(out$SNP == block$BLOCK.SNP), "P"]
+                out[which(out$BLOCK.N == i), "BLOCK.BP"]        = out[which(out$SNP == block$BLOCK.SNP), "BP"]
+                out[which(out$BLOCK.N == i), "BLOCK.N"]         = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]
+                out[which(out$BLOCK.N == i), "BLOCK.SNP"]       = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.SNP"]
+        } else {
+                out.final = subset(out.final, out.final$BLOCK.N != (i - 1)) # remove previous entry from out.final
+                out[which(out$BLOCK.N == i), "BLOCK.PRIMARY"]   = 0
+                out[which(out$BLOCK.N == i), "BLOCK.SECONDARY"] = 1
+                out[which(out$BLOCK.N == i), "BLOCK.P"]         = out[which(out$SNP == block$BLOCK.SNP), "P"]
+                out[which(out$BLOCK.N == i), "BLOCK.BP"]        = out[which(out$SNP == block$BLOCK.SNP), "BP"]
+                out[which(out$BLOCK.N == i), "BLOCK.N"]         = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]
+                out[which(out$BLOCK.N == i), "BLOCK.SNP"]       = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.SNP"]
+                i = i - 1
+        }
+    }
+    # CLEAN UP THE BLOCK NUMBERS
+    count = 0
+    for (i in 1:nrow(out.final)) {
+        if (out.final$BLOCK.PRIMARY[i] == 1) {
+                count = count + 1
+                out.final$BLOCK.N[i] = count
+        } else {
+                out.final$BLOCK.N[i] = NA
+        }
+    }
+    for (i in 1:nrow(out.final)){ # fill in the missings
+        if(is.na(out.final$BLOCK.N[i]) == T) {
+                out.final$BLOCK.N[i] = out.final[which(out.final$SNP == out.final$BLOCK.SNP[i]), "BLOCK.N"]
+        }
     }
     return(out.final)
 }
