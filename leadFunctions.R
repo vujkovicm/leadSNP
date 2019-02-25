@@ -54,23 +54,17 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
   df = df[order(df$CHR, df$BP), ]
   out = NULL
   for (iCHR in 1:22)  {
-     #print(paste("chr", iCHR, sep = ":"))
      df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "POP")]
      if (nrow(df.chr) > 0) {
         for (i in 1:nrow(df.chr)) {
-           # add also R2
-           # take first
-           #print(i)
            current.bp  = df.chr[i, "BP"]
            current.snp = df.chr[i, "SNP"]
            current.df  = df.chr[df.chr[, "BP"] >= current.bp - half.window & df.chr[, "BP"] <= current.bp + half.window, ]
-           # add SNPs that are in R2 with current.bp
            r2.A        = df.ld[which(df.ld$SNP_A == current.snp), "SNP_B"]
            r2.B        = df.ld[which(df.ld$SNP_B == current.snp), "SNP_A"]
            r2          = unique(c(r2.A, r2.B))
            if(length(r2) > 0) {
                 r2.df  = df.chr[which(df.chr$SNP %in% r2),]
-                # merge region based on physical distance and r2
                 current.df  = unique(rbind(current.df, r2.df))
            }
            block.start = min(current.df[, "BP"])
@@ -86,8 +80,7 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
    }
    out$BLOCK.PRIMARY   = ifelse(out$SNP == out$BLOCK.SNP, 1, 0)
    out$BLOCK.SECONDARY = ifelse(out$SNP != out$BLOCK.SNP, 1, 0)
-   # CLEAN UP THE BLOCKS
-   count = 0
+   count = 0  # clean up the region id's
    for (i in 1:nrow(out)) {
         if (out$BLOCK.PRIMARY[i] == 1) {
                 count = count + 1
@@ -96,8 +89,7 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
                 out$BLOCK.N[i] = NA
         }
    }
-   # now merge blocks that are knd of close and give them an id
-   for (i in 2:nrow(out)) {
+   for (i in 2:nrow(out)) {  # merge the blocks that are close
         if (is.na(out$BLOCK.N[i]) == T) {
                 prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
                 if(i < nrow(out)) {
@@ -129,8 +121,7 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
                 }
         }
    }
-# now update according to the new block information the positions
-   out.final = NULL
+   out.final = NULL # now update according to the new block information the positions
    for(i in 1:max(out$BLOCK.N)) {
         block             = out[which(out$BLOCK.N == i), ]
         block$BLOCK.SNP   = block[which(block$BLOCK.P == min(block$BLOCK.P)), "BLOCK.SNP"][[1]] # SNP with minimum P-value
@@ -158,8 +149,7 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
                 i = i - 1
         }
     }
-    # CLEAN UP THE BLOCK NUMBERS
-    count = 0
+    count = 0 # clean up the region id's again
     for (i in 1:nrow(out.final)) {
         if (out.final$BLOCK.PRIMARY[i] == 1) {
                 count = count + 1
@@ -168,7 +158,7 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
                 out.final$BLOCK.N[i] = NA
         }
     }
-    for (i in 1:nrow(out.final)){ # fill in the missings
+    for (i in 1:nrow(out.final)){ # fill in the missings region id's
         if(is.na(out.final$BLOCK.N[i]) == T) {
                 out.final$BLOCK.N[i] = out.final[which(out.final$SNP == out.final$BLOCK.SNP[i]), "BLOCK.N"]
         }
