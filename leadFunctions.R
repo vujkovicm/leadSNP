@@ -268,11 +268,6 @@ blocks.revisited = function(df, location = "primary") {
                                 df.merged = rbind(df.merged, df.tmp)
                                 block.list = c(block.list,  old.blocks)
                         }
-                        else {
-                                # remove another duplicate entry from df.merged
-                                dup.snp = row.names(df.merged[which((df.merged$SNP != df.merged$COJO.SNP) & (df.merged$SecondarySNP == tmp[i])), ])
-                                df.merged = df.merged[which(row.names(df.merged) != dup.snp), ]
-                        }
                 }
                 # keep the regions that were correct as is
                 df.resto = df[which(!(df$BLOCK.SNP %in% block.list)), ]
