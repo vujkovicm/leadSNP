@@ -393,6 +393,7 @@ tag.ancestry = function(ld.trans, df.eur = F, df.sas = F, df.amr = F, df.eas = F
         ld.full = cbind(ld.full$SNP, ld.tmp)
         names(ld.full)[1] = "SNP"
         ld.full$AncestryTag = paste(ld.full$EUR, ld.full$AFR, ld.full$SAS, ld.full$AMR, ld.full$EAS, sep=".")
+        return(ld.full)
 }
 
 # get nearest gene for each SNP
