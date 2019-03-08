@@ -375,6 +375,69 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
    return(out)
 }
 
+# flag ancestry-restricted SNPs (not in trans-ethnic meta)
+ancestry.restricted = function(df.race, df.trans, df.ld, pop = "EUR", chr = "CHR", bp = "BP", snp = "LeadSNP", trans.snp = "LeadSNP", half.window = 500000) {
+   ld.tmp    = subset(df.ld, (df.ld$TRANS > 0) & (df.ld[, pop] > 0)) # take only SNPs that compare a EUR SNP against a TRANS SNP
+   trans.ref = snp.coordinates(as.data.frame(df.trans[, trans.snp], stringsAsFactors = F))
+   out = NULL
+   for (iCHR in 1:22) {
+      df.chr   = df.race[df.race[, chr] == iCHR, ]       # split comparisons by chromosome
+      pd.chr   = trans.ref[trans.ref[, "CHR"] == iCHR, ] # check physical distance (pd)
+      ld.chr   = ld.tmp[ld.tmp$CHR_A == iCHR, ]          # check linkage disequilibrium (ld)
+      if (nrow(df.chr) > 0) {
+        df.chr$TRANS.SNP   = NA
+        df.chr$TRANS.EXACT = NA
+        df.chr$TRANS.R2    = NA
+        df.chr$TRANS.DIST  = NA
+        for (i in 1:nrow(df.chr)) {
+           if(nrow(pd.chr) + nrow(ld.chr) == 0) {   # if there are no snps in that chromosome in trans or trans.ld then set to missing
+              df.chr$TRANS.SNP[i] = NA
+           }
+           else {
+              if(nrow(pd.chr) != 0) {
+                 for(j in 1:nrow(pd.chr)) {  # check physical distance +- 0.5 MB
+                    #print(j)
+                    if((df.chr[i, bp] >= pd.chr[j, bp] - half.window) & (df.chr[i, bp] <= pd.chr[j, bp] + half.window)) {
+                       df.chr$TRANS.SNP[i] = pd.chr[j, "CHRCBP"]
+                       df.chr$TRANS.DIST[i]  = abs(pd.chr[j, "BP"] - df.chr[i, bp])
+                       if(df.chr$TRANS.SNP[i] == df.chr[i, snp]) {
+                          df.chr$TRANS.EXACT[i] = 1
+                          df.chr$TRANS.R2[i]    = 1
+                       next;
+                       }
+                    }
+                 }
+              }
+              if((nrow(ld.chr) != 0) & (is.na(df.chr$TRANS.EXACT[i]))) {   # now check ld, onlly when TRANS.SNP has not been found
+                 for(k in 1:nrow(ld.chr)) { # check fi in LD
+                    if (df.chr[i, snp] %in% ld.chr$SNP_A) {
+                       # take trans.snp that has the highest r2
+                       r.tmp =  ld.chr[which(ld.chr$SNP_A == df.chr[i, snp]), c("SNP_B", "R2", "BP_B")]
+                       df.chr$TRANS.SNP[i]   = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "SNP_B"]
+                       df.chr$TRANS.R2[i]    = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "R2"]
+                       df.chr$TRANS.DIST[i]  = abs(r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "BP_B"] -  df.chr[i, bp])
+                    }
+                    if (df.chr[i, snp] %in% ld.chr$SNP_B) {
+                       r.tmp =  ld.chr[which(ld.chr$SNP_B == df.chr[i, snp]), c("SNP_A", "R2", "BP_A")]
+                       if((max(r.tmp$R2) > df.chr$TRANS.R2[i] & is.na(df.chr$TRANS.R2[i]) == F) | (is.na(df.chr$TRANS.R2[i]) == T)) { # overwrite if r2 is larger
+                          df.chr$TRANS.SNP[i]  = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "SNP_A"]
+                          df.chr$TRANS.R2[i]   = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "R2"]
+                          df.chr$TRANS.DIST[i] = abs(r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "BP_A"] -  df.chr[i, bp])
+                       }
+                    }
+                 }
+              }
+           }
+        }
+        out = rbind(out, df.chr)
+      }
+   }
+   out$TRANS.SNP   = ifelse(is.na(out$TRANS.SNP), "-", out$TRANS.SNP)
+   out$TRANS.EXACT = ifelse((out$TRANS.SNP != "-") & (is.na(out$TRANS.EXACT) == T), 0, out$TRANS.EXACT)
+   out$RACE.ONLY   = ifelse(out$TRANS.SNP == "-", 1, 0)
+   return(out)
+}
+
 # ancestry tag for transethnic meta-analysis
 tag.ancestry = function(ld.trans, df.eur = F, df.sas = F, df.amr = F, df.eas = F, r2.high = 0.8, r2.low = 0.05, exact.high.combined = T) {
         if(data.frame(df.eur)) { ld.eur  = data.frame(SNP = unique(df.eur[, c("SNP")]), EUR = 1, AFR = 0, SAS = 0, AMR = 0, EAS = 0) } else { ld.eur = data.frame(SNP=NULL, EUR=NULL) }
