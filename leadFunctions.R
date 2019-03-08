@@ -12,9 +12,8 @@
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
-#           Revision :  snp.novel now accounts for missing SNPs in reference plink file, 
-#                       added functions: clean.cojo, clean.vep, ancestry.tag 
-#  Last modification :  6-Mar-2019
+#           Revision :  new function ancestry.restricted, fixed snp.novel
+#  Last modification :  08-Mar-2019
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
