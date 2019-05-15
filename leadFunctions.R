@@ -8,12 +8,13 @@
 #                                * plink LD output for all clumped SNPs (from analysis + established)
 #
 #        R functions :  clump.import, snp.block, snp.novel, ld.annotate, snp.annotate, snp.coordinates, ancestry.tag
-#                          overlapping.cojo.snps, updated.primary.lead, blocks.revisited, clean.cojo, clean.vep
+#                          overlapping.cojo.snps, updated.primary.lead, blocks.revisited, clean.cojo, clean.vep, x.block,
+#                          x.novel, is.coding
 #
 #            Version :  1.1
 #            Created :  21-Aug-2018
 #           Revision :  new function ancestry.restricted, fixed snp.novel
-#  Last modification :  08-Mar-2019
+#  Last modification :  15-May-2019
 #
 #             Author :  Marijana Vujkovic
 #        Modified by :
@@ -28,7 +29,7 @@ clump.import = function(filename = "", pop) {
    if(file.exists(filename)) {
       library("data.table")
       df <- fread(filename, select = c("CHR", "SNP", "BP", "P"))
-      df[which(df$P == 0), "P"] = 1e-315
+      df[which(df$P == 0), "P"] = 1e-316 
       df$POP = pop
       return(as.data.frame(df, stringsAsFactors = F))
    }
@@ -36,14 +37,14 @@ clump.import = function(filename = "", pop) {
 
 # get coordinates based on format chr1:58984
 snp.coordinates = function(df){
-        names(df) = "CHRCBP"
-        tmp = as.data.frame(do.call(rbind, strsplit(df$CHRCBP, '\\:')), stringsAsFactors = F)
-        colnames(tmp) = c("CHR", "BP")
-        tmp$CHR = ifelse(tmp$CHR == "chrX", "chr24", tmp$CHR)
-        df = cbind(df, tmp)
-        df$CHR = as.numeric(substring(df$CHR, 4))
-        df$BP  = as.numeric(df$BP)
-        return(df)
+	names(df) = "CHRCBP"
+	tmp = as.data.frame(do.call(rbind, strsplit(df$CHRCBP, '\\:')), stringsAsFactors = F)
+	colnames(tmp) = c("CHR", "BP")
+	tmp$CHR = ifelse(tmp$CHR == "chrX", "chr24", tmp$CHR)
+	df = cbind(df, tmp)
+	df$CHR = as.numeric(substring(df$CHR, 4))
+	df$BP  = as.numeric(df$BP)
+	return(df)
 }
 
 # define independend regions based on LD and physical distance
@@ -51,109 +52,110 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
   df = df[order(df$CHR, df$BP), ]
   out = NULL
   for (iCHR in 1:22)  {
-     #print(paste("chr", iCHR, sep = ":"))
      df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "POP")]
      if (nrow(df.chr) > 0) {
         for (i in 1:nrow(df.chr)) {
-           #print(i)
-           current.bp  = df.chr[i, "BP"]
-           current.snp = df.chr[i, "SNP"]
+	   current.bp  = df.chr[i, "BP"]
+	   current.snp = df.chr[i, "SNP"]
            current.df  = df.chr[df.chr[, "BP"] >= current.bp - half.window & df.chr[, "BP"] <= current.bp + half.window, ]
-           # add SNPs that are in R2 with current.bp
-           r2.A        = df.ld[which(df.ld$SNP_A == current.snp), "SNP_B"]
-           r2.B        = df.ld[which(df.ld$SNP_B == current.snp), "SNP_A"]
-           r2          = unique(c(r2.A, r2.B))
-           if(length(r2) > 0) {
-                r2.df  = df.chr[which(df.chr$SNP %in% r2),]
-                # merge region based on physical distance and r2
-                current.df  = unique(rbind(current.df, r2.df))
-           }
-           block.start = min(current.df[, "BP"])
+	   # add SNPs that are in R2 with current.bp
+	   r2.A        = df.ld[which(df.ld$SNP_A == current.snp), "SNP_B"]
+	   r2.B        = df.ld[which(df.ld$SNP_B == current.snp), "SNP_A"]
+           r2	       = unique(c(r2.A, r2.B))
+	   if(length(r2) > 0) {
+	   	r2.df  = df.chr[which(df.chr$SNP %in% r2),]
+	   	# merge region based on physical distance and r2	
+	   	current.df  = unique(rbind(current.df, r2.df))	
+	   }
+	   block.start = min(current.df[, "BP"])
            block.end   = max(current.df[, "BP"])
            block.p     = min(current.df[, "P"])
            block.bp    = current.df[current.df[, "P"] == block.p, "BP"]
            block.snp   = paste0("chr", iCHR, ":", block.bp)
-           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"],
-                BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
+           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"], 
+		BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
            out = rbind(out, tmp)
          }
       }
    }
    out$BLOCK.PRIMARY   = ifelse(out$SNP == out$BLOCK.SNP, 1, 0)
    out$BLOCK.SECONDARY = ifelse(out$SNP != out$BLOCK.SNP, 1, 0)
-   # clean up the blocks
+   # CLEAN UP THE BLOCKS
    count = 0
    for (i in 1:nrow(out)) {
         if (out$BLOCK.PRIMARY[i] == 1) {
-                count = count + 1
+		count = count + 1
                 out$BLOCK.N[i] = count
-        } else {
-                out$BLOCK.N[i] = NA
-        }
+	} else {
+		out$BLOCK.N[i] = NA
+	}
    }
    # now merge blocks that are knd of close and give them an id
    for (i in 2:nrow(out)) {
-        if (is.na(out$BLOCK.N[i]) == T) {
-                prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
-                if(i < nrow(out)) {
-                        nxt = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == min(out$BLOCK.N[i:nrow(out)], na.rm = T))), "SNP"]
-                }
-                if((nxt == prv) & (i < nrow(out))) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                }
-                else {
-                if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                } else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                } else  if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
-                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                } else if (i < nrow(out)) {
-                        if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
-                                out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                        } else {
-                                prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
-                                next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
-                                if(prev.diff < next.diff) {
-                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1]
-                                } else {
-                                        out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
-                                }
-                                }
-                        }
-                }
-        }
+	if (is.na(out$BLOCK.N[i]) == T) {
+		prv = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == max(out$BLOCK.N[1:i], na.rm = T))), "SNP"]
+		if(i < nrow(out)) {
+			nxt = out[which((out$BLOCK.PRIMARY == 1) & (out$BLOCK.N == min(out$BLOCK.N[i:nrow(out)], na.rm = T))), "SNP"]
+		}
+		if(identical(nxt, character(0)) == T) {
+			out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+		} 
+		else {	
+		if((nxt == prv) & (i < nrow(out))) { 
+			out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+		} 
+		else {
+		if(out[i, "BLOCK.SNP"] == out[which(out$SNP == prv), "BLOCK.SNP"]) {
+			out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+		} else if(out[i, "BLOCK.SNP"] == out[which(out$SNP == nxt), "BLOCK.SNP"]) {
+			out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+		} else	if (out[i, "CHR"] - out[i - 1, "CHR"] != 0) {
+			out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+		} else if (i < nrow(out)) {
+			if (out[i, "CHR"] - out[i + 1, "CHR"] != 0) {
+				out$BLOCK.N[i] = out$BLOCK.N[i - 1] 
+			} else {
+				prev.diff = abs(out[i, "BP"] - out[which(out$SNP == prv), "BP"])
+         			next.diff = abs(out[i, "BP"] - out[which(out$SNP == nxt), "BP"])
+          			if(prev.diff < next.diff) {
+                			out$BLOCK.N[i] = out$BLOCK.N[i - 1]
+        			} else {
+                			out$BLOCK.N[i] = out$BLOCK.N[i - 1] + 1
+				}
+				}
+        		}
+		}}	}
    }
-   # update according to the new block information the positions
+   # now update according to the new block information the positions
    out.final = NULL
    for(i in 1:max(out$BLOCK.N)) {
-        block             = out[which(out$BLOCK.N == i), ]
-        block$BLOCK.SNP   = block[which(block$BLOCK.P == min(block$BLOCK.P)), "BLOCK.SNP"][[1]] # SNP with minimum P-value
-        if(length(block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]) > 0) {
-                block$BLOCK.BP    = block[which(block$BLOCK.PRIMARY == 1), "BP"]
-                block$BLOCK.P     = block[which(block$BLOCK.PRIMARY == 1), "P"]
-                block$BLOCK.START = min(block$BP)
-                block$BLOCK.END   = max(block$BP)
-                out.final         = rbind(out.final, block)
-        } else if(i < out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]){ # leadSNP is in next block
+	block             = out[which(out$BLOCK.N == i), ]
+	block$BLOCK.SNP   = block[which(block$BLOCK.P == min(block$BLOCK.P)), "BLOCK.SNP"][[1]] # SNP with minimum P-value
+	if(length(block[which(block$SNP == tail(names(sort(table(block$BLOCK.SNP))), 1)[[1]]), "BP"]) > 0) {
+		block$BLOCK.BP    = block[which(block$BLOCK.PRIMARY == 1), "BP"]
+		block$BLOCK.P     = block[which(block$BLOCK.PRIMARY == 1), "P"]
+		block$BLOCK.START = min(block$BP)
+		block$BLOCK.END   = max(block$BP)
+		out.final         = rbind(out.final, block)
+	} else if(i < out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]){ # leadSNP is in next block
+		out[which(out$BLOCK.N == i), "BLOCK.PRIMARY"]   = 0
+		out[which(out$BLOCK.N == i), "BLOCK.SECONDARY"] = 1
+		out[which(out$BLOCK.N == i), "BLOCK.P"]         = out[which(out$SNP == block$BLOCK.SNP), "P"]
+		out[which(out$BLOCK.N == i), "BLOCK.BP"]        = out[which(out$SNP == block$BLOCK.SNP), "BP"]
+		out[which(out$BLOCK.N == i), "BLOCK.N"]         = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]
+		out[which(out$BLOCK.N == i), "BLOCK.SNP"]       = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.SNP"]
+	} else { 
+		out.final = subset(out.final, out.final$BLOCK.N != (i - 1)) # remove previous entry from out.final
                 out[which(out$BLOCK.N == i), "BLOCK.PRIMARY"]   = 0
                 out[which(out$BLOCK.N == i), "BLOCK.SECONDARY"] = 1
                 out[which(out$BLOCK.N == i), "BLOCK.P"]         = out[which(out$SNP == block$BLOCK.SNP), "P"]
                 out[which(out$BLOCK.N == i), "BLOCK.BP"]        = out[which(out$SNP == block$BLOCK.SNP), "BP"]
                 out[which(out$BLOCK.N == i), "BLOCK.N"]         = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]
                 out[which(out$BLOCK.N == i), "BLOCK.SNP"]       = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.SNP"]
-        } else {
-                out.final = subset(out.final, out.final$BLOCK.N != (i - 1)) # remove previous entry from out.final
-                out[which(out$BLOCK.N == i), "BLOCK.PRIMARY"]   = 0
-                out[which(out$BLOCK.N == i), "BLOCK.SECONDARY"] = 1
-                out[which(out$BLOCK.N == i), "BLOCK.P"]         = out[which(out$SNP == block$BLOCK.SNP), "P"]
-                out[which(out$BLOCK.N == i), "BLOCK.BP"]        = out[which(out$SNP == block$BLOCK.SNP), "BP"]
-                out[which(out$BLOCK.N == i), "BLOCK.N"]         = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.N"]
-                out[which(out$BLOCK.N == i), "BLOCK.SNP"]       = out[which(out$SNP == block$BLOCK.SNP), "BLOCK.SNP"]
-                i = i - 1
-        }
+		i = i - 1 
+	}
     }
-    # clean up the block ids
+    # CLEAN UP THE BLOCK NUMBERS
     count = 0
     for (i in 1:nrow(out.final)) {
         if (out.final$BLOCK.PRIMARY[i] == 1) {
@@ -164,37 +166,11 @@ snp.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
         }
     }
     for (i in 1:nrow(out.final)){ # fill in the missings
-        if(is.na(out.final$BLOCK.N[i]) == T) {
-                out.final$BLOCK.N[i] = out.final[which(out.final$SNP == out.final$BLOCK.SNP[i]), "BLOCK.N"]
-        }
+	if(is.na(out.final$BLOCK.N[i]) == T) {
+    		out.final$BLOCK.N[i] = out.final[which(out.final$SNP == out.final$BLOCK.SNP[i]), "BLOCK.N"]
+	}
     }
     return(out.final)
-}
-
-# need to put this as seperate, because need to merge with COJO
-overlapping.cojo.snps = function(df) {
-        tmp = unique(df[which(df$SecondarySNP %in% df[duplicated(df$SecondarySNP), "SecondarySNP"] & is.na(df$SecondarySNP) == F), "SecondarySNP"])
-        if(length(tmp) == 0) {
-                return(0)
-        } else {
-                return(tmp)
-        }
-}
-
-# get the new primary
-updated.primary.lead = function(df) {
-        tmp = unique(df[which(df$SecondarySNP %in% df[duplicated(df$SecondarySNP), "SecondarySNP"] & is.na(df$SecondarySNP) == F), "SecondarySNP"])
-        if(length(tmp) == 0) {
-                return(0)
-        } else {
-                out = NULL
-                for (i in 1:length(tmp)) {
-                        df.tmp    = df[which(df$SecondarySNP == tmp[i]), c("BLOCK.SNP", "BLOCK.P")]
-                        new.lead  = df.tmp[which(df.tmp$BLOCK.P == min(df.tmp$BLOCK.P)), "BLOCK.SNP"]
-                        out       = c(out, new.lead)
-                }
-                return(unique(out))
-        }
 }
 
 # return the loci that COJO should be rerun on
@@ -325,22 +301,22 @@ ld.annotate = function(df.ld, df.ref, df.trans = F, df.eur = F, df.sas = F, df.a
 snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.ld, half.window = 500000, missing.ref.snps = F) {
    out = NULL
    for (iCHR in 1:22) {
-   #print(iCHR)
+   print(iCHR)
       df.chr   = df[df[, chr] == iCHR, ]
       ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ]
       if (is.data.frame(missing.ref.snps)){
-            missing.chr = subset(missing.ref.snps, missing.ref.snps$CHR == iCHR)
-      }
+	    missing.chr = subset(missing.ref.snps, missing.ref.snps$CHR == iCHR)
+      }	
       if (nrow(df.chr) > 0) {
         df.chr$SENTINEL = NA
         for (i in 1:nrow(df.chr)) {
-           #print(i)
+ 	   #print(i)
            if(nrow(ref.chr) == 0) {
               df.chr$SENTINEL[i] = NA
            }
            else {
               for(j in 1:nrow(ref.chr)) {
-                 #print(j)
+		 #print(j)
                  if((df.chr[i, "BLOCK.BP"] >= ref.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= ref.chr[j, bp] + half.window)) {
                     df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
                  }
@@ -354,15 +330,15 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
                        df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
                     }
                  }
-             }
-             if (is.data.frame(missing.ref.snps)){
-                if(nrow(missing.chr) > 0) {
-                   for(j in 1:nrow(missing.chr)) {
-                      if((df.chr[i, "BLOCK.BP"] >= missing.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= missing.chr[j, bp] + half.window & (is.na(df.chr$SENTINEL[i]) == T))) {
+	     }
+	     if (is.data.frame(missing.ref.snps)){
+		if(nrow(missing.chr) > 0) {
+		   for(j in 1:nrow(missing.chr)) {
+		      if((df.chr[i, "BLOCK.BP"] >= missing.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= missing.chr[j, bp] + half.window & (is.na(df.chr$SENTINEL[i]) == T))) {
                           df.chr$SENTINEL[i] = missing.chr[j, "CHRCBP"]
                       }
-                   }
-                }
+		   }
+		}
              }
            }
         }
@@ -371,6 +347,84 @@ snp.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.l
    }
    out$SENTINEL = ifelse(is.na(out$SENTINEL), "-", out$SENTINEL)
    out$NOVEL    = ifelse(out$SENTINEL == "-", 1, 0)
+   return(out)
+}
+
+
+# is SNP coding?
+is.coding = function(df, df.ld, df.ref, prefix = "LoF", pop = "EUR", chr = "CHR", bp = "BP", snp = "SNP", half.window = 500000) {
+   ld.tmp    = subset(df.ld, df.ld[, pop] > 0) # take only SNPs that compare a EUR SNP against a TRANS SNP
+   out = NULL
+   for (iCHR in 1:22) {
+      df.chr   = df[df[, chr] == iCHR, ]           # split comparisons by chromosome
+      ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ] # check physical distance (pd)
+      ref.chr  = subset(ref.chr, is.na(ref.chr$CHR) == F)
+      ld.chr   = ld.tmp[ld.tmp$CHR_A == iCHR, ]    # check linkage disequilibrium (ld)
+      #anno.chr = df.anno[df.anno[,1] == iCHR, ]    # give priority to LOF, then MISSENSE, then CODING
+      if (nrow(df.chr) > 0) {
+        df.chr$TMP.SNP   = NA
+        df.chr$TMP.EXACT = NA
+        df.chr$TMP.R2    = NA
+        df.chr$TMP.DIST  = NA
+        for (i in 1:nrow(df.chr)) {
+           if(nrow(ref.chr) + nrow(ld.chr) == 0) {   # if there are no snps in that chromosome in trans or trans.ld then set to missing
+              df.chr$TMP.SNP[i] = NA
+           }
+           else {
+              if(nrow(ref.chr) != 0) {
+                 for(j in 1:nrow(ref.chr)) {  # check physical distance +- 0.5 MB
+                    #print(j)
+                    if((df.chr[i, bp] >= ref.chr[j, bp] - half.window) & (df.chr[i, bp] <= ref.chr[j, bp] + half.window)) {
+                       if(is.na(df.chr$TMP.DIST[i]) == T) { # if there is not distance
+		          df.chr$TMP.SNP[i]   = ref.chr[j, "CHRCBP"]
+                          df.chr$TMP.DIST[i]  = abs(ref.chr[j, "BP"] - df.chr[i, bp])
+                             if(df.chr$TMP.SNP[i]   == df.chr[i, snp]) {
+                             	df.chr$TMP.EXACT[i] = 1
+                             	df.chr$TMP.R2[i]    = 1
+			     	df.chr$TMP.DIST[i]  = 0
+                          	next;
+                          }
+		     }
+		     else {
+			  if(abs(ref.chr[j, "BP"] - df.chr[i, bp]) <  df.chr$TMP.DIST[i]) { # if distance is smaller than current distance
+		          df.chr$TMP.SNP[i]   = ref.chr[j, "CHRCBP"]
+                          df.chr$TMP.DIST[i]  = abs(ref.chr[j, "BP"] - df.chr[i, bp])
+                             if(df.chr$TMP.SNP[i]   == df.chr[i, snp]) {
+                             df.chr$TMP.EXACT[i] = 1
+                             df.chr$TMP.R2[i]    = 1
+                          next;
+			  }
+                       }
+		      }
+                    }
+                 }
+              }
+              if((nrow(ld.chr) != 0) & (is.na(df.chr$TMP.EXACT[i]))) {   # now check ld, only when TRANS.SNP has not been found
+                 for(k in 1:nrow(ld.chr)) { # check fi in LD
+                    if (df.chr[i, snp] %in% ld.chr$SNP_A) {
+                       # take trans.snp that has the highest r2
+                       r.tmp =  ld.chr[which(ld.chr$SNP_A == df.chr[i, snp]), c("SNP_B", "R2", "BP_B")]
+                       df.chr$TMP.SNP[i]   = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "SNP_B"]
+                       df.chr$TMP.R2[i]    = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "R2"]
+                       df.chr$TMP.DIST[i]  = abs(r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "BP_B"] -  df.chr[i, bp])
+                    }
+                    if (df.chr[i, snp] %in% ld.chr$SNP_B) {
+                       r.tmp =  ld.chr[which(ld.chr$SNP_B == df.chr[i, snp]), c("SNP_A", "R2", "BP_A")]
+                       if((max(r.tmp$R2) > df.chr$TMP.R2[i] & is.na(df.chr$TMP.R2[i]) == F) | (is.na(df.chr$TMP.R2[i]) == T)) { # overwrite if r2 is larger
+                          df.chr$TMP.SNP[i]  = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "SNP_A"]
+                          df.chr$TMP.R2[i]   = r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "R2"]
+                          df.chr$TMP.DIST[i] = abs(r.tmp[which(r.tmp$R2 == max(r.tmp$R2)), "BP_A"] -  df.chr[i, bp])
+                       }
+                    }
+                 }
+              }
+           }
+        }
+        out = rbind(out, df.chr)
+      }
+   }
+   out$TMP.SNP    = ifelse(is.na(out$TMP.SNP), "-", out$TMP.SNP)
+   out$TMP.EXACT  = ifelse((out$TMP.SNP != "-") & (is.na(out$TMP.EXACT) == T), 0, out$TMP.EXACT)
    return(out)
 }
 
@@ -507,3 +561,105 @@ snp.annotate = function(df, chr = "CHR", bp = "BP", range.1 = 100000, range.2 = 
    }
    return(df)
 }
+
+# is block on chromosome X
+x.block = function(df, df.ld, half.window = 500000, p.threshold = 5e-8) {
+  df = df[order(df$CHR, df$BP), ]
+  out = NULL
+  #for (iCHR %in% 23)  {
+  iCHR=23
+    #print(paste("chr", iCHR, sep = ":"))
+     df.chr = df[df[, "CHR"] == iCHR & df[, "P"] < p.threshold, c("SNP", "BP", "P", "POP")]
+     if (nrow(df.chr) > 0) {
+        for (i in 1:nrow(df.chr)) {
+           #print(i)
+           current.bp  = df.chr[i, "BP"]
+           current.snp = df.chr[i, "SNP"]
+           current.df  = df.chr[df.chr[, "BP"] >= current.bp - half.window & df.chr[, "BP"] <= current.bp + half.window, ]
+           # add SNPs that are in R2 with current.bp
+           r2.A        = df.ld[which(df.ld$SNP_A == current.snp), "SNP_B"]
+           r2.B        = df.ld[which(df.ld$SNP_B == current.snp), "SNP_A"]
+           r2          = unique(c(r2.A, r2.B))
+           if(length(r2) > 0) {
+                r2.df  = df.chr[which(df.chr$SNP %in% r2),]
+                # merge region based on physical distance and r2
+                current.df  = unique(rbind(current.df, r2.df))
+           }
+           block.start = min(current.df[, "BP"])
+           block.end   = max(current.df[, "BP"])
+           block.p     = min(current.df[, "P"])
+           block.bp    = current.df[current.df[, "P"] == block.p, "BP"]
+           block.snp   = paste0("X:", block.bp)
+           tmp = data.frame(CHR = iCHR, BP = current.bp, SNP =  df.chr[i, "SNP"], P =  df.chr[i, "P"], POP = df.chr[i, "POP"],
+                BLOCK.SNP = block.snp, BLOCK.BP = block.bp, BLOCK.P = block.p, BLOCK.START = block.start, BLOCK.END = block.end, stringsAsFactors = F)
+           out = rbind(out, tmp)
+         }
+      }
+   #}
+   out$BLOCK.PRIMARY   = ifelse(out$SNP == out$BLOCK.SNP, 1, 0)
+   out$BLOCK.SECONDARY = ifelse(out$SNP != out$BLOCK.SNP, 1, 0)
+   count = 0
+   for (i in 1:nrow(out)) {
+        if (out$BLOCK.PRIMARY[i] == 1) {
+                count = count + 1
+                out$BLOCK.N[i] = count
+        } else {
+                out$BLOCK.N[i] = NA
+        }
+   }
+   return(out)
+}
+
+# novel SNP on chromosome X
+x.novel = function(df, chr = "CHR", bp = "BP", snp = "BLOCK.SNP", df.ref, df.ld, half.window = 500000, missing.ref.snps = F) {
+   out = NULL
+   for (iCHR in 23) {
+   print(iCHR)
+      df.chr   = df[df[, chr] == iCHR, ]
+      ref.chr  = df.ref[df.ref[, "CHR"] == iCHR, ]
+      if (is.data.frame(missing.ref.snps)){
+            missing.chr = subset(missing.ref.snps, missing.ref.snps$CHR == iCHR)
+      }
+      if (nrow(df.chr) > 0) {
+        df.chr$SENTINEL = NA
+        for (i in 1:nrow(df.chr)) {
+           #print(i)
+           if(nrow(ref.chr) == 0) {
+              df.chr$SENTINEL[i] = NA
+           }
+           else {
+              for(j in 1:nrow(ref.chr)) {
+                 #print(j)
+                 if((df.chr[i, "BLOCK.BP"] >= ref.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= ref.chr[j, bp] + half.window)) {
+                    df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
+                 }
+                 else if (df.chr[i, snp] %in% df.ld$SNP_A) {
+                    if(ref.chr[j, "CHRCBP"] %in% df.ld[which(df.ld$SNP_A == df.chr[i, snp]), "SNP_B"]) {
+                       df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
+                    }
+                 }
+                 else if (df.chr[i, snp] %in% df.ld$SNP_B) {
+                    if(ref.chr[j, "CHRCBP"] %in% df.ld[which(df.ld$SNP_B == df.chr[i, snp]), "SNP_A"]) {
+                       df.chr$SENTINEL[i] = ref.chr[j, "CHRCBP"]
+                    }
+                 }
+             }
+             if (is.data.frame(missing.ref.snps)){
+                if(nrow(missing.chr) > 0) {
+                   for(j in 1:nrow(missing.chr)) {
+                      if((df.chr[i, "BLOCK.BP"] >= missing.chr[j, bp] - half.window) & (df.chr[i, "BLOCK.BP"] <= missing.chr[j, bp] + half.window & (is.na(df.chr$SENTINEL[i]) == T))) {
+                          df.chr$SENTINEL[i] = missing.chr[j, "CHRCBP"]
+                      }
+                   }
+                }
+             }
+           }
+        }
+        out = rbind(out, df.chr)
+      }
+   }
+   out$SENTINEL = ifelse(is.na(out$SENTINEL), "-", out$SENTINEL)
+   out$NOVEL    = ifelse(out$SENTINEL == "-", 1, 0)
+   return(out)
+}
+
